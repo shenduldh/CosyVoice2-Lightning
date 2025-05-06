@@ -26,7 +26,7 @@ sh run_demo.sh
 
 ### API
 
-> 启动 API 服务，由 Websocket 提供流式生成。具体接口参考 [API docs](api/docs.md)。
+> 启动 API 服务，由 Websocket 提供流式生成。具体接口参考 [API docs](api/README.md)。
 
 ```bash
 cd api
