@@ -17,6 +17,26 @@
 响应：`{"status": "ok"}`
 
 
+## 持久化保存已克隆音色
+
+
+地址：`POST http://0.0.0.0:12244/cache/save`
+
+参数：`{"cache_dir": "dir used to save tone cache", "prompt_ids": ["example_speaker_id1", "example_speaker_id2", ...]}`
+
+响应：`{"cache_path": "dir used to save tone cache"}`
+
+
+## 加载音色
+
+
+地址：`POST http://0.0.0.0:12244/cache/load`
+
+参数：`{"cache_path": "tone cache path", "prompt_ids": ["example_speaker_id1", "example_speaker_id2", ...]}`
+
+响应：`{"loaded_speakers": ["example_speaker_id1", "example_speaker_id2", ...]}`
+
+
 ## 克隆音色
 
 地址：`POST http://0.0.0.0:12244/clone`
