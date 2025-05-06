@@ -3,14 +3,14 @@
 
 ## 查看已克隆音色 ID
 
-地址：`GET http://0.0.0.0:12222/speakers`
+地址：`GET http://0.0.0.0:12244/speakers`
 
 响应：`["example_speaker_id1", "example_speaker_id2", ...]`
 
 
 ## 删除已克隆音色
 
-地址：`POST http://0.0.0.0:12222/remove`
+地址：`POST http://0.0.0.0:12244/remove`
 
 参数：`{"prompt_id": "example_speaker_id"}`
 
@@ -19,7 +19,7 @@
 
 ## 克隆音色
 
-地址：`POST http://0.0.0.0:12222/clone`
+地址：`POST http://0.0.0.0:12244/clone`
 
 参数：
 
@@ -36,7 +36,7 @@
 
 ## 流式 TTS
 
-地址：`WEBSOCKET ws://0.0.0.0:12222/tts`
+地址：`WEBSOCKET ws://0.0.0.0:12244/tts`
 
 参数：
 
