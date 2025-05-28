@@ -8,30 +8,76 @@ sys.path.insert(0, Matcha_path)
 
 import os
 from cosyvoice_vllm.pipeline import CosyVoice2
-from cosyvoice.utils.file_utils import load_wav
-from typing import Optional
+from typing import Optional, Union, List
 from collections import defaultdict
+import numpy as np
 import torchaudio
 import librosa
 import torch
 import soundfile
 import uuid
+import pyloudnorm as pyln
+from typing import AsyncGenerator
+import asyncio
+import queue
 
 
-def normalize_audio(
-    audio: torch.Tensor,
-    target_sr: int,
+def async_gen_to_sync_gen(async_gen_func: AsyncGenerator):
+    q = queue.Queue()
+
+    def inner(*args, **kwargs):
+        async def async_gen_to_queue():
+            async for i in async_gen_func(*args, **kwargs):
+                q.put((i, False))
+            q.put((None, True))
+
+        asyncio.run(async_gen_to_queue())
+
+        while True:
+            output, finished = q.get_nowait() if not q.empty() else q.get()
+            if finished:
+                break
+            yield output
+
+    return inner
+
+
+def load_and_normalize_audio(
+    audio_path: str,
+    sr=16000,
+    # normalize loudness
+    target_loudness=20.0,
+    # normalize amplitude
+    max_value=0.75,
+    # remove silence
     top_db=60,
-    hop_length=220,
-    frame_length=440,
-    max_val=0.8,
-):
+    hop_length=128,
+    frame_length=512,
+    # concat tail silence
+    concat_sr=24000,
+    tail_silence_length=0.2,
+) -> torch.Tensor:
+    # normalize loudness
+    audio, _ = librosa.load(audio_path, sr=sr, mono=True)
+    meter = pyln.Meter(sr)
+    orig_loudness = meter.integrated_loudness(audio)
+    audio = pyln.normalize.loudness(audio, orig_loudness, target_loudness)
+
+    # normalize amplitude
+    if np.abs(audio).max() > max_value:
+        audio = audio / np.abs(audio).max() * max_value
+
+    # remove silence
     audio, _ = librosa.effects.trim(
         audio, top_db=top_db, frame_length=frame_length, hop_length=hop_length
     )
-    if audio.abs().max() > max_val:
-        audio = audio / audio.abs().max() * max_val
-    audio = torch.concat([audio, torch.zeros(1, int(target_sr * 0.2))], dim=1)
+
+    # concat tail silence
+    audio = torch.as_tensor(audio).view(1, -1)
+    audio = torch.concat(
+        [audio, torch.zeros(1, int(concat_sr * tail_silence_length))], dim=1
+    )
+
     return audio
 
 
@@ -53,19 +99,35 @@ class Pipeline:
         self.prompt_cache = defaultdict(dict)
         self.sample_rate = self.cosyvoice.sample_rate
 
-    def save_cache(self, cache_dir: str, speaker_ids=[]):
-        saved = {k: v for k, v in self.speaker_cache.items() if k in speaker_ids}
+    def save_cache(
+        self,
+        cache_dir: str,
+        filename: Union[str, None] = None,
+        speaker_ids: List[str] = [],
+    ):
+        if len(speaker_ids) > 0:
+            saved = {k: v for k, v in self.speaker_cache.items() if k in speaker_ids}
+        else:
+            saved = {k: v for k, v in self.speaker_cache.items()}
+
         if len(saved) == 0:
             return None
+
         os.makedirs(cache_dir, exist_ok=True)
-        cache_path = os.path.join(cache_dir, f"speaker_cache_{uuid.uuid4().hex[:7]}.pt")
+        if filename is None:
+            filename = f"speaker_cache_{uuid.uuid4().hex}.pt"
+        cache_path = os.path.join(cache_dir, filename)
+        if os.path.exists(cache_path):
+            os.remove(cache_path)
         torch.save(saved, cache_path)
         return cache_path
 
-    def load_cache(self, cache_path: str, speaker_ids=[]):
+    def load_cache(self, cache_path: str, speaker_ids: List[str] = []):
         if not os.path.exists(cache_path):
             return []
-        speaker_cache = torch.load(cache_path, map_location=torch.device("cpu"))
+        speaker_cache = torch.load(
+            cache_path, map_location=torch.device("cpu"), weights_only=False
+        )
         if len(speaker_ids) > 0:
             filtered = {k: v for k, v in speaker_cache.items() if k in speaker_ids}
         else:
@@ -76,13 +138,18 @@ class Pipeline:
     def get_speakers(self):
         return list(self.speaker_cache.keys())
 
-    def remove_speaker(self, speaker_id):
-        if speaker_id in self.speaker_cache:
-            del self.speaker_cache[speaker_id]
+    def remove_speakers(self, speaker_ids=[]):
+        removed = []
+        for spk_id in speaker_ids:
+            if spk_id in self.speaker_cache:
+                self.speaker_cache.pop(spk_id)
+                removed.append(spk_id)
+        return removed
 
-    def calc_speaker_feature(self, audio_path, resample_rate):
-        prompt_audio_16k = load_wav(audio_path, target_sr=16000)
-        prompt_audio_16k = normalize_audio(prompt_audio_16k, resample_rate)
+    def calc_speaker_feature(self, audio_path, loudness, resample_rate):
+        prompt_audio_16k = load_and_normalize_audio(
+            audio_path, sr=16000, target_loudness=loudness, concat_sr=resample_rate
+        )
         prompt_audio_resampled = torchaudio.transforms.Resample(
             orig_freq=16000, new_freq=resample_rate
         )(prompt_audio_16k)
@@ -110,10 +177,13 @@ class Pipeline:
             "prompt_speech_feat": speech_feat,
         }
 
-    def split_text(self, text, split=False, text_frontend=True):
-        return self.cosyvoice.frontend.text_normalize(
-            text, split=split, text_frontend=text_frontend
+    def splitnorm_text(self, text, split=False, use_frontend_model=True):
+        res = self.cosyvoice.frontend.text_normalize(
+            text, split=split, use_frontend_model=use_frontend_model
         )
+        if not isinstance(res, list):
+            return [res]
+        return res
 
     def calc_text_feature(self, text):
         text_token = self.cosyvoice.frontend._extract_text_token(text)
@@ -126,13 +196,16 @@ class Pipeline:
         instruct_text: str,
         resample_rate: int,
         speaker_id: Optional[str | int] = None,
-        text_frontend=True,
+        speaker_loudness: float = 20.0,
+        use_frontend_model=True,
     ):
         model_input = {}
 
         if speaker_id is None or speaker_id not in self.speaker_cache:
             # 计算音色特征
-            speaker_dict = self.calc_speaker_feature(prompt_audio, resample_rate)
+            speaker_dict = self.calc_speaker_feature(
+                prompt_audio, speaker_loudness, resample_rate
+            )
         else:
             # 从缓存获取音色特征
             speaker_dict = self.speaker_cache[speaker_id]
@@ -145,9 +218,9 @@ class Pipeline:
         # 计算提示文本特征
         if prompt_text is not None:
             if prompt_text not in self.prompt_cache:
-                prompt_text = self.split_text(
-                    prompt_text, split=False, text_frontend=text_frontend
-                )
+                prompt_text = self.splitnorm_text(
+                    prompt_text, split=False, use_frontend_model=use_frontend_model
+                )[0]
                 prompt_info = self.calc_text_feature(prompt_text)
                 self.prompt_cache[prompt_text].update(prompt_info)
             else:
@@ -161,9 +234,11 @@ class Pipeline:
         if instruct_text is not None:
             if instruct_text not in self.prompt_cache:
                 instruct_text = (
-                    self.split_text(
-                        instruct_text, split=False, text_frontend=text_frontend
-                    )
+                    self.splitnorm_text(
+                        instruct_text,
+                        split=False,
+                        use_frontend_model=use_frontend_model,
+                    )[0]
                     + "<|endofprompt|>"
                 )
                 instruct_info = self.calc_text_feature(instruct_text)
@@ -176,38 +251,6 @@ class Pipeline:
 
         return model_input
 
-    def generate(
-        self,
-        tts_text,
-        prompt_text,
-        prompt_audio,
-        instruct_text,
-        speaker_id=None,
-        text_frontend=True,
-        speed=1.0,
-        stream=False,
-    ):
-        model_input = self.preprocess(
-            prompt_text,
-            prompt_audio,
-            instruct_text,
-            self.sample_rate,
-            speaker_id=speaker_id,
-            text_frontend=text_frontend,
-        )
-
-        for split_tts_text in self.split_text(
-            tts_text, split=True, text_frontend=text_frontend
-        ):
-            tts_text_token = self.cosyvoice.frontend._extract_text_token(split_tts_text)
-            model_input.update({"text": tts_text_token})
-            for output_speech in self.cosyvoice.model.tts(
-                **model_input, stream=stream, speed=speed
-            ):
-                yield output_speech.numpy().flatten()
-
-        del model_input
-
     async def async_generate(
         self,
         tts_text,
@@ -215,7 +258,9 @@ class Pipeline:
         prompt_audio,
         instruct_text,
         speaker_id=None,
-        text_frontend=True,
+        speaker_loudness=20.0,
+        use_frontend_model=True,
+        do_split_text=True,
         speed=1.0,
         stream=False,
     ):
@@ -225,11 +270,12 @@ class Pipeline:
             instruct_text,
             self.sample_rate,
             speaker_id=speaker_id,
-            text_frontend=text_frontend,
+            speaker_loudness=speaker_loudness,
+            use_frontend_model=use_frontend_model,
         )
 
-        for split_tts_text in self.split_text(
-            tts_text, split=True, text_frontend=text_frontend
+        for split_tts_text in self.splitnorm_text(
+            tts_text, split=do_split_text, use_frontend_model=use_frontend_model
         ):
             tts_text_token = self.cosyvoice.frontend._extract_text_token(split_tts_text)
             model_input.update({"text": tts_text_token})
@@ -239,6 +285,11 @@ class Pipeline:
                 yield output_speech.numpy().flatten()
 
         del model_input
+
+    def generate(self, *args, **kwargs):
+        _sync_gen_func = async_gen_to_sync_gen(self.async_generate)
+        for i in _sync_gen_func(*args, **kwargs):
+            yield i
 
     def save_audio(self, saved_path, audio_ndarray):
         soundfile.write(saved_path, audio_ndarray, self.sample_rate)

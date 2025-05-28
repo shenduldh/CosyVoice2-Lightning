@@ -3,6 +3,7 @@ import torch
 import types
 from contextlib import nullcontext
 import queue
+import logging
 
 from cosyvoice.flow.flow_matching import CausalConditionalCFM
 
@@ -90,3 +91,55 @@ def stream_context(is_enable=True, stream_count=10):
         return lambda *args, **kwargs: func(*args, **kwargs)
 
     return outer
+
+
+def convert_onnx_to_trt(trt_model, onnx_model, fp16, max_workspace_size=8):
+    import tensorrt as trt
+
+    _min_shape = [(2, 80, 4), (2, 1, 4), (2, 80, 4), (2,), (2, 80), (2, 80, 4)]
+    _opt_shape = [(2, 80, 193), (2, 1, 193), (2, 80, 193), (2,), (2, 80), (2, 80, 193)]
+    _max_shape = [
+        (2, 80, 6800),
+        (2, 1, 6800),
+        (2, 80, 6800),
+        (2,),
+        (2, 80),
+        (2, 80, 6800),
+    ]
+    input_names = ["x", "mask", "mu", "t", "spks", "cond"]
+
+    logging.info("Converting onnx to trt...")
+    network_flags = 1 << int(trt.NetworkDefinitionCreationFlag.EXPLICIT_BATCH)
+    logger = trt.Logger(trt.Logger.INFO)
+    builder = trt.Builder(logger)
+    network = builder.create_network(network_flags)
+    parser = trt.OnnxParser(network, logger)
+    config = builder.create_builder_config()
+    config.set_memory_pool_limit(
+        trt.MemoryPoolType.WORKSPACE, max_workspace_size * 1 << 30
+    )
+    if fp16:
+        config.set_flag(trt.BuilderFlag.FP16)
+    profile = builder.create_optimization_profile()
+    # load onnx model
+    with open(onnx_model, "rb") as f:
+        if not parser.parse(f.read()):
+            for error in range(parser.num_errors):
+                print(parser.get_error(error))
+            raise ValueError("failed to parse {}".format(onnx_model))
+    # set input shapes
+    for i in range(len(input_names)):
+        profile.set_shape(input_names[i], _min_shape[i], _opt_shape[i], _max_shape[i])
+    tensor_dtype = trt.DataType.HALF if fp16 else trt.DataType.FLOAT
+    # set input and output data type
+    for i in range(network.num_inputs):
+        input_tensor = network.get_input(i)
+        input_tensor.dtype = tensor_dtype
+    for i in range(network.num_outputs):
+        output_tensor = network.get_output(i)
+        output_tensor.dtype = tensor_dtype
+    config.add_optimization_profile(profile)
+    engine_bytes = builder.build_serialized_network(network, config)
+    # save trt engine
+    with open(trt_model, "wb") as f:
+        f.write(engine_bytes)

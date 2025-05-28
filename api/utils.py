@@ -1,3 +1,4 @@
+import os
 import numpy as np
 from pydub import AudioSegment
 import librosa
@@ -10,6 +11,19 @@ import struct
 from typing import AsyncGenerator, Union, Literal
 import traceback
 from tempfile import NamedTemporaryFile
+import zhon
+import string
+import re
+
+
+__project_root__ = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+
+def path_to_root(*paths):
+    if len(paths) > 0:
+        return os.path.join(__project_root__, *paths)
+    else:
+        return __project_root__
 
 
 def truncate_long_str(obj, max_len=70, ellipsis="......"):
@@ -273,3 +287,17 @@ def remove_silence(
     e = int(e + right_retention_seconds * sample_rate)
     audio_ndarray = audio_ndarray[s:e]
     return audio_ndarray
+
+
+PUNCTS = re.escape(string.punctuation + zhon.hanzi.punctuation)
+
+
+def remove_puncts(text, mode: Literal["left", "right", "all"] = "all"):
+    pattern = f"[{PUNCTS}]+"
+    match mode:
+        case "left":
+            pattern = f"^{pattern}"
+        case "right":
+            pattern = f"{pattern}$"
+
+    return re.sub(pattern, "", text)

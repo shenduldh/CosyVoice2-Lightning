@@ -21,6 +21,7 @@ except ImportError:
     from tn.english.normalizer import Normalizer as EnNormalizer
 
     use_ttsfrd = False
+
 from cosyvoice.utils.frontend_utils import (
     contains_chinese,
     replace_blank,
@@ -42,12 +43,12 @@ class CosyVoiceFrontEnd:
         feat_extractor: Callable,
         campplus_model: str,
         speech_tokenizer_model: str,
-        spk2info: str = "",
         allowed_special: str = "all",
     ):
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
         self.tokenizer = get_tokenizer()
         self.feat_extractor = feat_extractor
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         option = onnxruntime.SessionOptions()
         option.graph_optimization_level = (
             onnxruntime.GraphOptimizationLevel.ORT_ENABLE_ALL
@@ -67,12 +68,7 @@ class CosyVoiceFrontEnd:
                 )
             ],
         )
-        if os.path.exists(spk2info):
-            self.spk2info = torch.load(
-                spk2info, map_location=self.device, weights_only=False
-            )
-        else:
-            self.spk2info = {}
+
         self.allowed_special = allowed_special
         self.use_ttsfrd = use_ttsfrd
         if self.use_ttsfrd:
@@ -159,13 +155,13 @@ class CosyVoiceFrontEnd:
         )
         return speech_feat, speech_feat_len
 
-    def text_normalize(self, text, split=True, text_frontend=True):
+    def text_normalize(self, text, split=True, use_frontend_model=True):
         if isinstance(text, (Generator, AsyncGenerator)):
             return [text]
 
         text = text.strip()
 
-        if text_frontend is False or text == "":
+        if not use_frontend_model or text == "":
             return text if not split else [text]
 
         if self.use_ttsfrd:

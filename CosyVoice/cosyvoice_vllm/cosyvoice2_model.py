@@ -12,9 +12,9 @@ import uuid
 from cosyvoice.flow.flow import CausalMaskedDiffWithXvec
 from cosyvoice.hifigan.generator import HiFTGenerator
 from cosyvoice.utils.common import fade_in_out
-from cosyvoice.utils.file_utils import convert_onnx_to_trt
+
 from .llm_model import CosyVoice2LLM
-from .utils import set_flow_decoder, stream_context
+from .utils import set_flow_decoder, stream_context, convert_onnx_to_trt
 
 
 class CosyVoice2Model:
@@ -165,6 +165,7 @@ class CosyVoice2Model:
                 speech_feat=tts_mel, cache_source=hift_cache_source
             )
             if self.hift_cache_dict[uuid] is not None:
+                # 当前开头和缓存结尾用汉明窗重叠部分
                 tts_speech = fade_in_out(
                     tts_speech, self.hift_cache_dict[uuid]["speech"], self.speech_window
                 )

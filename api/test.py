@@ -7,7 +7,6 @@ import json
 import time
 import shutil
 import random
-import time
 
 
 base_url = "0.0.0.0:12244"
@@ -15,7 +14,6 @@ base_url = "0.0.0.0:12244"
 
 ###########################################
 ###########################################
-
 
 res = requests.get(f"http://{base_url}/speakers")
 print(res.json())
@@ -113,10 +111,13 @@ texts = [
     如今租客们总抱怨13楼有面擦不干净的镜子。偶尔有醉鬼看见穿真丝睡裙的女人在镜前梳头，发梢滴落的不知是水还是血——那件染血的睡裙，
     此刻正整整齐齐叠在我的衣柜底层。""",
 ]
-prompt_ids = ["teemo", "twitch"]
+prompt_ids = [
+    # "teemo",
+    "twitch",
+]
 
 
-async def main(task_count=4):
+async def main(task_count=1):
     shutil.rmtree("./results", ignore_errors=True)
 
     tasks = []

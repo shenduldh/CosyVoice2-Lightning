@@ -28,13 +28,13 @@ async def generate(
             prompt_audio,
             instruct_text,
             prompt_id,
-            text_frontend=True,
+            use_frontend_model=True,
             stream=True,
         ),
         pipeline.sample_rate * 2,
     ):
         if STATE["id"] != task_id:
-            break
+            return
 
         whole_audio.append(chunk)
 
@@ -74,24 +74,22 @@ with gr.Blocks() as demo:
         outputs=[stream_out, whole_out],
     )
 
+    speakers_dir = os.path.join(os.path.dirname(__file__), "assets", "speakers")
+    speaker_names = os.listdir(speakers_dir)
+
+    def get_transcript(path):
+        with open(path, "r", encoding="utf-8") as f:
+            return f.read().strip()
+
     gr.Examples(
         examples=[
             [
-                os.path.join(
-                    os.path.dirname(__file__), "assets/speakers/teemo/audio.mp3"
-                ),
-                "绝对不要低估斥候戒律的威力。体型并不能说明一切。一、二、三、四。我去前面探探路。是长官。有情况。要迅捷。呵啊哈哈哈。是长官。整装待发。正在报告。呃啊。有情况。呃啊。哈哈啊，呵哈哈哈。",
-                "teemo",
-                "四是四，十是十，十四是十四，四十是四十，别把十四说成四十，也别把四十说成十四。",
-            ],
-            [
-                os.path.join(
-                    os.path.dirname(__file__), "assets/speakers/twitch/audio.mp3"
-                ),
-                "呵呵，猥琐点，再猥琐点。站着别动。我的眼睛在脑袋的两边。这只弩箭是我专门为你而舔的。",
-                "twitch",
-                "黑化肥发灰会挥发，灰化肥挥发会发黑。",
-            ],
+                os.path.join(speakers_dir, name, "audio.mp3"),
+                get_transcript(os.path.join(speakers_dir, name, "transcript.txt")),
+                name,
+                "你好，这是一段测试文本。",
+            ]
+            for name in speaker_names
         ],
         inputs=[prompt_audio, prompt_text, speaker_id, tts_text],
     )

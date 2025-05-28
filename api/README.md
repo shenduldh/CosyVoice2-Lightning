@@ -12,9 +12,9 @@
 
 地址：`POST http://0.0.0.0:12244/remove`
 
-参数：`{"prompt_id": "example_speaker_id"}`
+参数：`{"prompt_ids": ["example_speaker_id1", "example_speaker_id2", ...]}`
 
-响应：`{"status": "ok"}`
+响应：`{"removed_speakers": ["example_speaker_id1", "example_speaker_id2", ...]}`
 
 
 ## 持久化保存已克隆音色
@@ -22,7 +22,15 @@
 
 地址：`POST http://0.0.0.0:12244/cache/save`
 
-参数：`{"cache_dir": "dir used to save tone cache", "prompt_ids": ["example_speaker_id1", "example_speaker_id2", ...]}`
+参数：
+
+```json
+{
+    "cache_dir": "dir used to save tone cache",
+    "filename": "example_speaker_cache",
+    "prompt_ids": ["example_speaker_id1", "example_speaker_id2", ...]
+}
+```
 
 响应：`{"cache_path": "dir used to save tone cache"}`
 
@@ -47,7 +55,10 @@
 {
     "prompt_audio": "base64, url or local file path",
     "prompt_text": "Example text",
-    "prompt_id": "example_speaker_id"
+    "prompt_id": "example_speaker_id",
+    "loudness": 20.0,
+    "audio_format": "wav",
+    "sample_rate": 16000
 }
 ```
 

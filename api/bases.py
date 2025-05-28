@@ -2,12 +2,13 @@ from pydantic import BaseModel, Field
 from typing import List, Union
 
 
-class RemoveSpeakerInput(BaseModel):
-    prompt_id: str = Field(description="参考音频 ID")
+class RemoveSpeakersInput(BaseModel):
+    prompt_ids: List[str] = Field(description="要移除的参考音频 ID")
 
 
 class SaveCacheInput(BaseModel):
-    cache_dir: str = Field(description="缓存目录路径")
+    cache_dir: str = Field(description="缓存目录路径", default="../assets")
+    filename: Union[str, None] = Field(description="缓存文件名", default=None)
     prompt_ids: List[str] = Field(description="待保存音色 ID")
 
 
@@ -20,6 +21,8 @@ class CloneInput(BaseModel):
     prompt_audio: str = Field(description="参考音频链接")
     prompt_text: str = Field(description="参考音频文本")
     prompt_id: Union[str, None] = Field(description="参考音频 ID", default=None)
+    loudness: float = Field(description="参考音频音量", default=20.0)
+    audio_format: str = Field(description="参考音频格式", default="wav")
     sample_rate: int = Field(description="参考音频采样率", default=16000)
 
 
