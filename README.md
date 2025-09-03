@@ -17,7 +17,7 @@
 
 ## Demo
 
-- 哪吒：<audio src="assets/nezha.wav"></audio>
+- 哪吒：[nezha](assets/nezha.wav)
 
 - 邻家女孩：<audio src="assets/linjianvhai.wav"></audio>
 
@@ -29,7 +29,7 @@
 
 ## TTFF
 
-使用 `SGLang` 作为后端测试 TTFF：
+> 以下测试使用 `SGLang` 作为后端。
 
 - 单句话
 
