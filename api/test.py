@@ -13,8 +13,8 @@ import matplotlib.pyplot as plt
 
 BASE_URL = "localhost:12244"
 SAVED_ROOT = "./results"
-SAVE_GENERATED_AUDIO = False  ## control whether to save generated audios
-WHETHER_TO_TEST_MTTFF = True  ## control whether to test mttff metric
+SAVE_GENERATED_AUDIO = True  ## control whether to save generated audios
+WHETHER_TO_TEST_MTTFF = False  ## control whether to test mttff metric
 TEXTS = [
     # """《404病房》
     # 护士站的值班表上并没有404号病房。但凌晨三点，我分明听见走廊尽头传来规律的滴水声。
@@ -34,7 +34,10 @@ TEXTS = [
     # 如今租客们总抱怨13楼有面擦不干净的镜子。偶尔有醉鬼看见穿真丝睡裙的女人在镜前梳头，发梢滴落的不知是水还是血——那件染血的睡裙，
     # 此刻正整整齐齐叠在我的衣柜底层。""",
     ##############################
-    # """今天天气真好呀！太阳晒得好舒服，让我们一起出去玩吧。我想去公园玩，你能陪我去公园玩吗？""",
+    # """曲曲折折的荷塘上面，弥望的是田田的叶子。叶子出水很高，像亭亭的舞女的裙。
+    # 层层的叶子中间，零星地点缀着些白花，有袅娜地开着的，有羞涩地打着朵儿的；
+    # 正如一粒粒的明珠，又如碧天里的星星，又如刚出浴的美人。""",
+    # """若前方无路，我便踏出一条路；若天理不容，我便逆转这乾坤。"""
     """今天天气真好呀！让我们一起出去玩吧。""",
 ]
 PROMPT_IDS = [
