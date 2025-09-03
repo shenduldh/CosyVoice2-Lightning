@@ -17,15 +17,17 @@
 
 ## Demo
 
-- 哪吒：[nezha](assets/nezha.wav)
+- 哪吒：<audio src="assets/nezha.mp3"></audio>
 
-- 邻家女孩：<audio src="assets/linjianvhai.wav"></audio>
+- 邻家女孩：<audio src="assets/linjianvhai.mp3"></audio>
 
-- 桃子：<audio src="assets/wenroutaozi.wav"></audio>
+- 小美：<audio src="assets/tianxinxiaomei.mp3"></audio>
 
-- 甄嬛：<audio src="assets/zhenhuan.wav"></audio>
+- 甄嬛：<audio src="assets/zhenhuan.mp3"></audio>
 
-- 提莫：<audio src="assets/teemo.wav"></audio>
+- 阳光甜美：<audio src="yangguangtianmei.mp3"></audio>
+
+- 提莫：<audio src="assets/teemo.mp3"></audio>
 
 ## TTFF
 

@@ -37,7 +37,12 @@ TEXTS = [
     # """曲曲折折的荷塘上面，弥望的是田田的叶子。叶子出水很高，像亭亭的舞女的裙。
     # 层层的叶子中间，零星地点缀着些白花，有袅娜地开着的，有羞涩地打着朵儿的；
     # 正如一粒粒的明珠，又如碧天里的星星，又如刚出浴的美人。""",
+    ##############################
+    # """五年前那个深秋的黄昏，我独自站在地坛的古柏下，听见风穿过荒草与断墙，仿佛时光碎裂的声音。
+    # 母亲曾在这里寻过我无数次，而她的脚印早已被落叶掩埋，只剩下我与这园子互相望着，像两个被遗弃的孩子。"""
+    ##############################
     # """若前方无路，我便踏出一条路；若天理不容，我便逆转这乾坤。"""
+    ##############################
     """今天天气真好呀！让我们一起出去玩吧。""",
 ]
 PROMPT_IDS = [
@@ -70,7 +75,7 @@ async def request_tts(text, prompt_id, task_id, saved_dir):
                 {
                     "req_params": {
                         "prompt_id": prompt_id,
-                        "audio_format": "wav",
+                        "audio_format": "mp3",
                         "sample_rate": 24000,
                         "instruct_text": None,
                     }
@@ -116,7 +121,7 @@ async def request_tts(text, prompt_id, task_id, saved_dir):
                     os.makedirs(f"{root}/chunks", exist_ok=True)
                     save_audio(
                         chunk,
-                        f"{root}/chunks/{message['index']}.wav",
+                        f"{root}/chunks/{message['index']}.mp3",
                         resample_rate,
                     )
 
@@ -127,7 +132,7 @@ async def request_tts(text, prompt_id, task_id, saved_dir):
                 break
 
         if SAVE_GENERATED_AUDIO:
-            save_audio(np.concatenate(whole_audio), f"{root}/whole.wav", resample_rate)
+            save_audio(np.concatenate(whole_audio), f"{root}/whole.mp3", resample_rate)
 
         return all_recv_seconds[0]
 
