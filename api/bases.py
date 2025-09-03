@@ -31,6 +31,18 @@ class CloneOutput(BaseModel):
     prompt_id: str = Field(description="参考音频 ID")
 
 
+class TTSInput(BaseModel):
+    text: str = Field(description="生成语音的文本")
+    prompt_id: str = Field(description="参考音频 ID")
+    audio_format: str = Field(description="合成音频格式", default="wav")
+    sample_rate: int = Field(description="合成音频采样率", default=24000)
+    instruct_text: Union[str | None] = Field(description="指令文本", default=None)
+
+
+class TTSOutput(BaseModel):
+    audio: str = Field(description="合成音频的 base64 数据")
+
+
 class TTSStreamRequestParameters(BaseModel):
     prompt_id: str = Field(description="参考音频 ID")
     audio_format: str = Field(description="合成音频格式", default="wav")

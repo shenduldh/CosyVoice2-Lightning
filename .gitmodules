@@ -1,3 +1,3 @@
-[submodule "CosyVoice/third_party/Matcha-TTS"]
-	path = CosyVoice/third_party/Matcha-TTS
+[submodule "tts_fast/third_party/Matcha-TTS"]
+	path = tts_fast/third_party/Matcha-TTS
 	url = https://github.com/shivammehta25/Matcha-TTS.git

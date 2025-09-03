@@ -8,9 +8,9 @@ from dotenv import load_dotenv
 @click.option("--env", default="./.env")
 def main(env):
     load_dotenv(env, override=True)
-
     uvicorn.run(
         "app:app",
+        loop="none",
         host=os.getenv("HOST"),
         port=int(os.getenv("PORT")),
         reload_excludes=["logs/*", "test.py"],

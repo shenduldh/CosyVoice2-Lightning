@@ -2,15 +2,31 @@
 
 ## Introduction
 
-参考 [CosyVoice2-08312f4](https://github.com/FunAudioLLM/CosyVoice/tree/08312f4c4615b465d66ff55036be1cbd642904e6) 和 [async_cosyvoice](https://github.com/qi-hua/async_cosyvoice) 修改的 CosyVoice2 API，支持以下特性：
+参考 [CosyVoice2](https://github.com/FunAudioLLM/CosyVoice) 修改的 CosyVoice2 Websocket API，支持以下特性：
 
-1. 使用 VLLM 加速推理；
+1. 使用 `vLLM 0.7` 加速推理；
 2. 支持流式输入和流式输出；
 3. 支持多格式音频（opus、pcm、wav、mp3、flac、aac、m4a、wav，默认是 wav）和多采样率输出；
 4. 支持克隆音色；
 5. 支持使用指令文本控制语音生成；
-6. 支持保存和加载已克隆音色；
-7. 简化的部署流程。
+6. 支持保存和加载已克隆音色。
+
+## Updates
+
+- [2025/09/03] 新增支持 `vLLM 0.8`、`vLLM 0.9` 和 `SGLang`；提高长文本生成质量；简化部署；同步官方代码。
+
+
+## TTFF
+
+使用 `SGLang` 作为后端测试 TTFF：
+
+- 单句话
+
+    <img src="./assets/single_sentence_mttff.png" width="50%">
+
+- 短段落
+
+    <img src="./assets/short_paragraph_mttff.png" width="50%">
 
 ## Usage
 
@@ -21,6 +37,7 @@
 > 启动演示 Demo，包括克隆和指令控制。
 
 ```bash
+cd demo
 sh run_demo.sh
 ```
 
