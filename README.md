@@ -121,16 +121,6 @@
 
     - 修改 `api/.env` 和 `run_demo.sh` 中的 `TORCH_CUDA_ARCH_LIST` 为你的 CUDA 架构版本。比如上面命令的输出是 `(8, 9)`，则修改为 `TORCH_CUDA_ARCH_LIST=8.9`。
 
-7. 其他问题处理
-
-   - `AttributeError: 'ClassDef' object has no attribute 'type_params'`
-
-     安装 modelscope-1.14.0：`pip install modelscope==1.14.0`
-   
-   - `OSError: /etc/miniconda3/envs/cosyvoice2/bin/../lib/libstdc++.so.6: version `GLIBCXX_3.4.32' not found (required by /root/.cache/flashinfer/89/cached_ops/sampling/sampling.so)`
-
-     删除 `/etc/miniconda3/envs/cosyvoice2/bin/../lib/libstdc++.so.6`。
-
 ### Gradio Demo
 
 > 启动演示 Demo，包括克隆和指令控制。
