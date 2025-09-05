@@ -16,30 +16,34 @@ import soundfile
 import uuid
 import pyloudnorm as pyln
 from typing import AsyncGenerator
-import asyncio
+import uvloop
 import queue
+import threading
 
 from cosyvoice2_fast.model import CosyVoice2, CosyVoiceInputType
 
 
 def async_to_sync_gen(async_generator: AsyncGenerator):
-    def sync_generator():
-        q = queue.Queue()
+    q = queue.Queue()
 
-        async def do_async_generation():
+    async def do_async_generation():
+        try:
             async for i in async_generator:
                 q.put((i, False))
+        finally:
             q.put((None, True))
 
-        asyncio.run(do_async_generation())
+    def run_in_new_loop():
+        loop = uvloop.new_event_loop()
+        loop.run_until_complete(do_async_generation())
 
-        while True:
-            output, finished = q.get_nowait() if not q.empty() else q.get()
-            if finished:
-                break
-            yield output
+    threading.Thread(target=run_in_new_loop).start()
 
-    return sync_generator
+    while True:
+        output, finished = q.get_nowait() if not q.empty() else q.get()
+        if finished:
+            break
+        yield output
 
 
 def load_and_normalize_audio(

@@ -8,7 +8,7 @@ import soundfile as sf
 import io
 import base64
 import struct
-from typing import AsyncGenerator, Union, Literal
+from typing import AsyncGenerator, Generator, Union, Literal, overload
 import traceback
 from tempfile import NamedTemporaryFile
 import zhon
@@ -43,11 +43,44 @@ def whats_wrong_with(e):
     return traceback.format_exception_only(e)[-1].strip()
 
 
-async def repack(generator: AsyncGenerator[np.ndarray, None], min_size=0, max_num=100):
+async def async_repack(
+    generator: AsyncGenerator[np.ndarray, None], min_size=0.0, max_num=100
+) -> AsyncGenerator[np.ndarray, None]:
     buffer = []
     buffer_size = 0
 
     async for chunk in generator:
+        buffer.append(chunk)
+        buffer_size += chunk.shape[-1]
+
+        while len(buffer) > max_num:
+            if buffer:
+                yield np.concatenate(buffer)
+                buffer.clear()
+                buffer_size = 0
+
+        while buffer_size >= min_size:
+            output = []
+            output_size = 0
+            while buffer and output_size < min_size:
+                block = buffer.pop(0)
+                output.append(block)
+                output_size += len(block)
+                buffer_size -= len(block)
+
+            yield np.concatenate(output)
+
+    if buffer:
+        yield np.concatenate(buffer)
+
+
+def repack(
+    generator: Generator[np.ndarray, None, None], min_size=0.0, max_num=100
+) -> Generator[np.ndarray, None, None]:
+    buffer = []
+    buffer_size = 0
+
+    for chunk in generator:
         buffer.append(chunk)
         buffer_size += chunk.shape[-1]
 

@@ -61,7 +61,7 @@ COMMON_OVERRIDES = {
 }
 
 WAIT_INTERVAL = 1e-7
-TIMEOUT = 10.0
+TIMEOUT = 20.0
 
 
 @ray.remote(num_gpus=FLOW_USED_NUM_GPUS, max_concurrency=100)
@@ -85,22 +85,22 @@ class FlowActor:
     @stream_context()
     def generate(
         self,
-        speech_token,
-        prompt_token,
-        prompt_feat,
-        speaker_embedding,
-        finalized,
-        offset,
-        id,
-        index,
+        speech_token: torch.Tensor,
+        prompt_token: torch.Tensor,
+        prompt_feat: torch.Tensor,
+        speaker_embedding: torch.Tensor,
+        finalized: bool,
+        offset: int,
+        id: str,
+        index: int,
     ):
         with torch.amp.autocast("cuda", torch.float16 if self.fp16 else torch.float):
             speech_mel, _ = self.flow_model.inference(
-                token=speech_token.to(torch.long).to(self.device),
+                token=speech_token.long().to(self.device),
                 token_len=torch.tensor([speech_token.shape[1]], dtype=torch.int32).to(
                     self.device
                 ),
-                prompt_token=prompt_token.to(torch.long).to(self.device),
+                prompt_token=prompt_token.long().to(self.device),
                 prompt_token_len=torch.tensor(
                     [prompt_token.shape[1]], dtype=torch.int32
                 ).to(self.device),
@@ -419,9 +419,8 @@ class Scheduler:
     def flow_job(self, req: Request):
         try:
             offset = 0
-            duration = 0
+            __start = time.time()
             while not req.stop:
-                s = time.time()
                 if req.llm_done:
                     flow_length = len(req.tokens)
                     self.submit_flow_inputs(req, offset, flow_length, True)
@@ -432,10 +431,9 @@ class Scheduler:
                         # generated length, length to generate, finalized
                         self.submit_flow_inputs(req, offset, flow_length, False)
                         offset += self.hop_len
-                        duration = 0
+                        __start = time.time()
                     else:
-                        duration += time.time() - s
-                        if duration > TIMEOUT:
+                        if time.time() - __start > TIMEOUT:
                             raise TimeoutError("The flow job is timeout.")
                         time.sleep(WAIT_INTERVAL)
         except:
@@ -445,9 +443,8 @@ class Scheduler:
     def hift_job(self, req: Request):
         try:
             index = 1
-            duration = 0
+            __start = time.time()
             while not req.stop:
-                s = time.time()
                 if (
                     len(req.mels) > index
                     and req.mels[index] is not None
@@ -457,10 +454,9 @@ class Scheduler:
                     if index == req.end_index:
                         break
                     index += 1
-                    duration = 0
+                    __start = time.time()
                 else:
-                    duration += time.time() - s
-                    if duration > TIMEOUT:
+                    if time.time() - __start > TIMEOUT:
                         raise TimeoutError("The hift job is timeout.")
                     time.sleep(WAIT_INTERVAL)
         except:
@@ -497,9 +493,8 @@ class Scheduler:
 
         try:
             index = 1
-            duration = 0
+            __start = time.time()
             while not req.stop:
-                s = time.time()
                 if len(req.pcms) > index and req.pcms[index] is not None:
                     finalized = index == req.end_index
                     if finalized:
@@ -510,10 +505,9 @@ class Scheduler:
                             :, : -self.source_cache_len
                         ].cpu().numpy().flatten()
                     index += 1
-                    duration = 0
+                    __start = time.time()
                 else:
-                    duration += time.time() - s
-                    if duration > TIMEOUT:
+                    if time.time() - __start > TIMEOUT:
                         raise TimeoutError("Waiting pcm is timeout.")
                     await asyncio.sleep(WAIT_INTERVAL)
         finally:
@@ -606,7 +600,7 @@ class CosyVoice2:
         input_type=CosyVoiceInputType.SINGLE,
     ):
         req_args = {
-            "request_id": uuid.uuid4().hex[:7] if id is None else id,
+            "request_id": id or uuid.uuid4().hex[:7],
             "input_generator": self.wrap_to_generator(text, split_text, input_type),
             "prompt_text_tokens": prompt_text,
             "llm_prompt_speech_tokens": llm_prompt_speech_token,

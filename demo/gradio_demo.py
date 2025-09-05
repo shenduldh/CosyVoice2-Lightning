@@ -10,19 +10,15 @@ import numpy as np
 from api.utils import repack, float32_to_int16
 
 
-async def generate(
-    tts_text, prompt_text: str, prompt_audio, instruct_text: str, prompt_id
-):
-    yield gr.update(value=None), gr.update(value=None)
-
+def generate(tts_text, prompt_text: str, prompt_audio, instruct_text: str, prompt_id):
     if len(prompt_text.strip()) == 0:
         prompt_text = None
     if len(instruct_text.strip()) == 0:
         instruct_text = None
 
     whole_audio = []
-    async for chunk in repack(
-        pipeline.async_generate(
+    for chunk in repack(
+        pipeline.generate(
             None,
             tts_text,
             prompt_text,
@@ -42,7 +38,7 @@ async def generate(
         )
 
 
-with gr.Blocks() as demo:
+with gr.Blocks(title="CosyVoice2 Demo") as demo:
     with gr.Tab("CosyVoice2 Fast"):
         with gr.Row():
             prompt_audio = gr.Audio(
@@ -62,7 +58,7 @@ with gr.Blocks() as demo:
             type="numpy",
             streaming=True,
             autoplay=True,
-            every=0.1,
+            every=1,
         )
         whole_out = gr.Audio(label="完整语音", type="numpy", streaming=False)
 
@@ -96,10 +92,9 @@ with gr.Blocks() as demo:
 if __name__ == "__main__":
     tts_model_dir = os.environ["TTS_MODEL_DIR"]
     pipeline = CosyVoice2Pipeline(tts_model_dir)
-    demo.queue(status_update_rate=1, max_size=2, default_concurrency_limit=1)
     demo.launch(
         server_name="0.0.0.0",
-        server_port=14477,
+        server_port=int(os.getenv("PORT", "14477")),
         share=False,
         allowed_paths=[os.path.join(root_path, "assets/speakers")],
     )

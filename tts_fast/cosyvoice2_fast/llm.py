@@ -3,6 +3,9 @@ import shutil
 from typing import List, AsyncGenerator
 import torch
 import uuid
+import uvloop
+import threading
+import asyncio
 
 
 ENGINE_MODE = os.getenv("LLM_ENGINE_MODE", "sglang")
@@ -38,6 +41,7 @@ class CosyVoice2LLMWrapper:
 
         if ENGINE_MODE == "sglang":
             self.engine = sglang.Engine(model_path=model_dir, **ENGINE_ARGS)
+            self.engine_generate_fn = self.sglang_generate
         elif ENGINE_MODE == "vllm":
             self.engine: AsyncLLMEngine = AsyncLLMEngine.from_engine_args(
                 AsyncEngineArgs(model=model_dir, **ENGINE_ARGS)
@@ -53,6 +57,7 @@ class CosyVoice2LLMWrapper:
                     "get_eos_token_id",
                     lambda *args, **kwargs: None,
                 )
+            self.engine_generate_fn = self.vllm_generate
 
         self.mix_ratio = mix_ratio
         self.num_speech_tokens = 6561 + 3
@@ -62,44 +67,64 @@ class CosyVoice2LLMWrapper:
         self.zero_token_id = self.task_token_id + 1
         self.stop_token_ids = [6561, 6562, 6563]
 
-    async def call_engine_generation(
-        self,
-        input_token_ids,
-        request_id,
-        stop_token_ids,
-        max_tokens=None,
-        min_tokens=0,
-    ):
-        if ENGINE_MODE == "sglang":
-            sampling_params = {
-                **SAMPLING_PARAMS,
-                "stop_token_ids": stop_token_ids,
-                "max_new_tokens": max_tokens,
-                "min_new_tokens": 0,
-            }
-            generator = await self.engine.async_generate(
-                input_ids=input_token_ids,
-                sampling_params=sampling_params,
-                stream=True,
-            )
-            last_completion_tokens = 0
-            async for output in generator:
-                yield output["output_ids"][last_completion_tokens:]
-                last_completion_tokens = output["meta_info"]["completion_tokens"]
+        self.loop = uvloop.new_event_loop()
+        threading.Thread(
+            target=lambda: (asyncio.set_event_loop(self.loop), self.loop.run_forever()),
+            daemon=True,
+        ).start()
 
-        elif ENGINE_MODE == "vllm":
-            sampling_params = SamplingParams(
-                **SAMPLING_PARAMS,
-                stop_token_ids=stop_token_ids,
-                max_tokens=max_tokens,
-                min_tokens=min_tokens,
-            )
-            async for output in self.engine.generate(
-                {"prompt_token_ids": input_token_ids},
-                sampling_params=sampling_params,
-                request_id=request_id or uuid.uuid4().hex,
-            ):
-                yield output.outputs[0].token_ids
+    async def sglang_generate(
+        self, input_token_ids, request_id, stop_token_ids, max_tokens=None, min_tokens=0
+    ):
+        sampling_params = {
+            **SAMPLING_PARAMS,
+            "stop_token_ids": stop_token_ids,
+            "max_new_tokens": max_tokens,
+            "min_new_tokens": 0,
+        }
+        generator = await self.engine.async_generate(
+            input_ids=input_token_ids,
+            sampling_params=sampling_params,
+            stream=True,
+        )
+        last_completion_tokens = 0
+        async for output in generator:
+            yield output["output_ids"][last_completion_tokens:]
+            last_completion_tokens = output["meta_info"]["completion_tokens"]
+
+    async def vllm_generate(
+        self, input_token_ids, request_id, stop_token_ids, max_tokens=None, min_tokens=0
+    ):
+        sampling_params = SamplingParams(
+            **SAMPLING_PARAMS,
+            stop_token_ids=stop_token_ids,
+            max_tokens=max_tokens,
+            min_tokens=min_tokens,
+        )
+        async for output in self.engine.generate(
+            {"prompt_token_ids": input_token_ids},
+            sampling_params=sampling_params,
+            request_id=request_id or uuid.uuid4().hex,
+        ):
+            yield output.outputs[0].token_ids
+
+    async def background_generate(self, *args, q: asyncio.Queue, **kwargs):
+        try:
+            async for tokens in self.engine_generate_fn(*args, **kwargs):
+                q.put_nowait(tokens)
+        finally:
+            q.put_nowait(None)
+
+    async def call_engine_generation(self, *args, **kwargs):
+        q = asyncio.Queue()
+        asyncio.run_coroutine_threadsafe(
+            self.background_generate(*args, **kwargs, q=q), self.loop
+        )
+        while True:
+            tokens = q.get_nowait() if not q.empty() else await q.get()
+            if tokens is None:
+                break
+            yield tokens
 
     async def inference(
         self,

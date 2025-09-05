@@ -259,7 +259,7 @@ async def tts_job(tts_info: TTSInfo, websocket: WebSocket):
         )
         min_repacking_size = Global.tts_model.sample_rate * 0.01
 
-        async for chunk_ndarray in repack(output_stream, min_repacking_size):
+        async for chunk_ndarray in async_repack(output_stream, min_repacking_size):
             if Global.config["tts"]["do_removing_silence"]:
                 chunk_ndarray = remove_silence(
                     chunk_ndarray,
