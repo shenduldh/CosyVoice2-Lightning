@@ -23,6 +23,7 @@ seg2stream==1.0.7
 onnxruntime-gpu==1.20.2
 openai-whisper==20240930
 wetext==0.0.8
+inflect==7.5.0
 lightning==2.5.1.post0
 conformer==0.3.2
 diffusers==0.33.1

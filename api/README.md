@@ -32,7 +32,7 @@
 }
 ```
 
-响应：`{"cache_path": "dir used to save tone cache"}`
+响应：`{"cache_path": "path used to save tone cache"}`
 
 
 ## 加载音色

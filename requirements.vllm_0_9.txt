@@ -23,6 +23,7 @@ seg2stream==1.0.7
 onnxruntime-gpu==1.20.2
 openai-whisper==20240930
 wetext==0.0.8
+inflect==7.5.0
 lightning==2.5.1.post0
 conformer==0.3.2
 diffusers==0.33.1
@@ -31,7 +32,6 @@ tensorrt-cu12-bindings==10.0.1
 tensorrt-cu12-libs==10.0.1
 peft==0.15.2
 ##########
-inflect==7.5.0
 numpy==1.26.4
 ray==2.46.0
 torch==2.7.0 --index-url https://download.pytorch.org/whl/cu126

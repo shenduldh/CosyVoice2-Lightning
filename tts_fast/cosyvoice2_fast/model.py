@@ -94,27 +94,32 @@ class FlowActor:
         id: str,
         index: int,
     ):
-        with torch.amp.autocast("cuda", torch.float16 if self.fp16 else torch.float):
-            speech_mel, _ = self.flow_model.inference(
-                token=speech_token.long().to(self.device),
-                token_len=torch.tensor([speech_token.shape[1]], dtype=torch.int32).to(
-                    self.device
-                ),
-                prompt_token=prompt_token.long().to(self.device),
-                prompt_token_len=torch.tensor(
-                    [prompt_token.shape[1]], dtype=torch.int32
-                ).to(self.device),
-                prompt_feat=prompt_feat.to(self.device),
-                prompt_feat_len=torch.tensor(
-                    [prompt_feat.shape[1]], dtype=torch.int32
-                ).to(self.device),
-                embedding=speaker_embedding.to(self.device),
-                streaming=not finalized,
-                finalize=finalized,
-            )
-        speech_mel = speech_mel[:, :, offset * self.flow_model.token_mel_ratio :]
-        torch.cuda.empty_cache()
-        return speech_mel, id, index
+        try:
+            with torch.amp.autocast(
+                "cuda", torch.float16 if self.fp16 else torch.float
+            ):
+                speech_mel, _ = self.flow_model.inference(
+                    token=speech_token.long().to(self.device),
+                    token_len=torch.tensor(
+                        [speech_token.shape[1]], dtype=torch.int32
+                    ).to(self.device),
+                    prompt_token=prompt_token.long().to(self.device),
+                    prompt_token_len=torch.tensor(
+                        [prompt_token.shape[1]], dtype=torch.int32
+                    ).to(self.device),
+                    prompt_feat=prompt_feat.to(self.device),
+                    prompt_feat_len=torch.tensor(
+                        [prompt_feat.shape[1]], dtype=torch.int32
+                    ).to(self.device),
+                    embedding=speaker_embedding.to(self.device),
+                    streaming=not finalized,
+                    finalize=finalized,
+                )
+            speech_mel = speech_mel[:, :, offset * self.flow_model.token_mel_ratio :]
+            torch.cuda.empty_cache()
+            return speech_mel, id, index
+        except:
+            print(f"Error in flow generation: {traceback.format_exc()}")
 
     def build(self):
         with open(f"{self.model_dir}/cosyvoice2.yaml", "r") as f:
@@ -202,12 +207,15 @@ class HiftActor:
 
     @ray.method(enable_task_events=False)
     def generate(self, speech_mel, cache_source, id, index):
-        speech_pcm, new_source = self.hift_model.inference(
-            speech_feat=speech_mel.to(self.device),
-            cache_source=cache_source.to(self.device),
-        )
-        torch.cuda.empty_cache()
-        return speech_pcm, new_source, id, index
+        try:
+            speech_pcm, new_source = self.hift_model.inference(
+                speech_feat=speech_mel.to(self.device),
+                cache_source=cache_source.to(self.device),
+            )
+            torch.cuda.empty_cache()
+            return speech_pcm, new_source, id, index
+        except:
+            print(f"Error in hift generation: {traceback.format_exc()}")
 
     def build(self):
         with open(f"{self.model_dir}/cosyvoice2.yaml", "r") as f:
@@ -296,36 +304,40 @@ class Scheduler:
             self.speech_window = np.hamming(2 * self.source_cache_len)
 
     def get_flow_outputs(self):
-        try:
-            while True:
+        while True:
+            try:
                 if self.flow_pool.has_next():
-                    speech_mel, id, index = self.flow_pool.get_next_unordered()
-                    if id in self.cache:
-                        self.cache[id].mels[index] = speech_mel
+                    outputs = self.flow_pool.get_next_unordered()
+                    if outputs is not None:
+                        speech_mel, id, index = outputs
+                        if id in self.cache:
+                            self.cache[id].mels[index] = speech_mel
                 else:
                     time.sleep(WAIT_INTERVAL)
-        except:
-            logger.error(f"Error in getting flow: {traceback.format_exc()}")
+            except:
+                logger.error(f"Error in getting flow: {traceback.format_exc()}")
 
     def get_hift_outputs(self):
-        try:
-            while True:
+        while True:
+            try:
                 if self.hift_pool.has_next():
-                    tts_pcm, tts_source, id, index = self.hift_pool.get_next_unordered()
-                    if id in self.cache:
-                        req = self.cache[id]
-                        req.sources[index] = tts_source
-                        if req.pcms[index - 1] is not None:
-                            tts_pcm = fade_in_out(
-                                tts_pcm,
-                                req.pcms[index - 1][:, -self.source_cache_len :],
-                                self.speech_window,
-                            )
-                        req.pcms[index] = tts_pcm
+                    outputs = self.hift_pool.get_next_unordered()
+                    if outputs is not None:
+                        tts_pcm, tts_source, id, index = outputs
+                        if id in self.cache:
+                            req = self.cache[id]
+                            req.sources[index] = tts_source
+                            if req.pcms[index - 1] is not None:
+                                tts_pcm = fade_in_out(
+                                    tts_pcm,
+                                    req.pcms[index - 1][:, -self.source_cache_len :],
+                                    self.speech_window,
+                                )
+                            req.pcms[index] = tts_pcm
                 else:
                     time.sleep(WAIT_INTERVAL)
-        except:
-            logger.error(f"Error in getting hift: {traceback.format_exc()}")
+            except:
+                logger.error(f"Error in getting hift: {traceback.format_exc()}")
 
     def submit_flow_inputs(self, req: Request, offset, flow_length, finalized):
         this_speech_tokens = torch.tensor(req.tokens[:flow_length])
@@ -423,7 +435,8 @@ class Scheduler:
             while not req.stop:
                 if req.llm_done:
                     flow_length = len(req.tokens)
-                    self.submit_flow_inputs(req, offset, flow_length, True)
+                    if flow_length > 0:
+                        self.submit_flow_inputs(req, offset, flow_length, True)
                     break
                 elif req.stream:
                     flow_length = offset + self.hop_len + self.pre_lookahead_len
@@ -501,9 +514,12 @@ class Scheduler:
                         yield req.pcms[index].cpu().numpy().flatten()
                         break
                     else:
-                        yield req.pcms[index][
-                            :, : -self.source_cache_len
-                        ].cpu().numpy().flatten()
+                        yield (
+                            req.pcms[index][:, : -self.source_cache_len]
+                            .cpu()
+                            .numpy()
+                            .flatten()
+                        )
                     index += 1
                     __start = time.time()
                 else:
