@@ -61,11 +61,16 @@ COMMON_OVERRIDES = {
 }
 
 WAIT_INTERVAL = 1e-7
-TIMEOUT = 20.0
+TIMEOUT = 30.0
+
+
+class ModelActor:
+    def ready(self):
+        print(f"{self.__class__.__name__} is ready.")
 
 
 @ray.remote(num_gpus=FLOW_USED_NUM_GPUS, max_concurrency=100)
-class FlowActor:
+class FlowActor(ModelActor):
     def __init__(
         self, model_dir: str, overrides: dict, use_jit, use_trt, fp16, do_compile
     ):
@@ -194,7 +199,7 @@ class FlowActor:
 
 
 @ray.remote(num_gpus=HIFT_USED_NUM_GPUS, max_concurrency=100)
-class HiftActor:
+class HiftActor(ModelActor):
     def __init__(self, model_dir: str, overrides: dict, do_compile):
         self.model_dir = model_dir
         self.overrides = deepcopy(overrides)
@@ -272,20 +277,22 @@ class Scheduler:
         self.set_config(model_dir)
 
         self.llm = CosyVoice2LLMWrapper(model_dir)
-        self.flow_pool = ActorPool(
-            [
-                FlowActor.remote(
-                    model_dir, COMMON_OVERRIDES, use_jit, use_trt, fp16, do_compile
-                )
-                for _ in range(flow_count)
-            ]
-        )
-        self.hift_pool = ActorPool(
-            [
-                HiftActor.remote(model_dir, COMMON_OVERRIDES, do_compile)
-                for _ in range(hift_count)
-            ]
-        )
+
+        flow_actors = [
+            FlowActor.remote(
+                model_dir, COMMON_OVERRIDES, use_jit, use_trt, fp16, do_compile
+            )
+            for _ in range(flow_count)
+        ]
+        ray.get([a.ready.remote() for a in flow_actors])
+        self.flow_pool = ActorPool(flow_actors)
+
+        hift_actors = [
+            HiftActor.remote(model_dir, COMMON_OVERRIDES, do_compile)
+            for _ in range(hift_count)
+        ]
+        ray.get([a.ready.remote() for a in hift_actors])
+        self.hift_pool = ActorPool(hift_actors)
 
         self.thread_pool = ThreadPoolExecutor()
         self.thread_pool.submit(self.get_flow_outputs)
