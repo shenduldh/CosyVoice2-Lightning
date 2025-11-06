@@ -1,9 +1,10 @@
+import os
 import sys
 
-sys.path.insert(0, "/data1/other/cosyvoice2-lightning/tts_fast")
-sys.path.insert(0, "/data1/other/cosyvoice2-lightning/tts_fast/third_party/Matcha-TTS")
+__project_root__ = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.join(__project_root__, "tts_fast"))
+sys.path.insert(0, os.path.join(__project_root__, "tts_fast/third_party/Matcha-TTS"))
 
-import os
 from typing import Literal
 import torch
 from loguru import logger
@@ -332,7 +333,7 @@ def main(
 if __name__ == "__main__":
     main(
         model_name="llm",
-        config_path="./cosyvoice2.yaml",
+        config_path="./config.yaml",
         train_data_list_path="./output/parquet/parquet_list",
         dev_data_list_path="./output/parquet/parquet_list",
         qwen_pretrain_path="../assets/CosyVoice2-0.5B/CosyVoice-BlankEN",
