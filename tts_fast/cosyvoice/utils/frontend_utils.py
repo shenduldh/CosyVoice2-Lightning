@@ -14,8 +14,7 @@
 
 import re
 import regex
-
-chinese_char_pattern = re.compile(r"[\u4e00-\u9fff]+")
+chinese_char_pattern = re.compile(r'[\u4e00-\u9fff]+')
 
 
 # whether contain chinese character
@@ -25,16 +24,16 @@ def contains_chinese(text):
 
 # replace special symbol
 def replace_corner_mark(text):
-    text = text.replace("²", "平方")
-    text = text.replace("³", "立方")
+    text = text.replace('²', '平方')
+    text = text.replace('³', '立方')
     return text
 
 
 # remove meaningless symbol
 def remove_bracket(text):
-    text = text.replace("（", "").replace("）", "")
-    text = text.replace("【", "").replace("】", "")
-    text = text.replace("`", "").replace("`", "")
+    text = text.replace('（', '').replace('）', '')
+    text = text.replace('【', '').replace('】', '')
+    text = text.replace('`', '').replace('`', '')
     text = text.replace("——", " ")
     return text
 
@@ -46,7 +45,7 @@ def spell_out_number(text: str, inflect_parser):
     for i, c in enumerate(text):
         if not c.isdigit():
             if st is not None:
-                num_str = inflect_parser.number_to_words(text[st:i])
+                num_str = inflect_parser.number_to_words(text[st: i])
                 new_text.append(num_str)
                 st = None
             new_text.append(c)
@@ -56,22 +55,14 @@ def spell_out_number(text: str, inflect_parser):
     if st is not None and st < len(text):
         num_str = inflect_parser.number_to_words(text[st:])
         new_text.append(num_str)
-    return "".join(new_text)
+    return ''.join(new_text)
 
 
 # split paragrah logic：
 # 1. per sentence max len token_max_n, min len token_min_n, merge if last sentence len less than merge_len
 # 2. cal sentence len according to lang
 # 3. split sentence according to puncatation
-def split_paragraph(
-    text: str,
-    tokenize,
-    lang="zh",
-    token_max_n=80,
-    token_min_n=60,
-    merge_len=20,
-    comma_split=False,
-):
+def split_paragraph(text: str, tokenize, lang="zh", token_max_n=80, token_min_n=60, merge_len=20, comma_split=False):
     def calc_utt_length(_text: str):
         if lang == "zh":
             return len(_text)
@@ -85,11 +76,11 @@ def split_paragraph(
             return len(tokenize(_text)) < merge_len
 
     if lang == "zh":
-        pounc = ["。", "？", "！", "；", "：", "、", ".", "?", "!", ";"]
+        pounc = ['。', '？', '！', '；', '：', '、', '.', '?', '!', ';']
     else:
-        pounc = [".", "?", "!", ";", ":"]
+        pounc = ['.', '?', '!', ';', ':']
     if comma_split:
-        pounc.extend(["，", ","])
+        pounc.extend(['，', ','])
 
     if text[-1] not in pounc:
         if lang == "zh":
@@ -101,9 +92,9 @@ def split_paragraph(
     utts = []
     for i, c in enumerate(text):
         if c in pounc:
-            if len(text[st:i]) > 0:
-                utts.append(text[st:i] + c)
-            if i + 1 < len(text) and text[i + 1] in ['"', "”"]:
+            if len(text[st: i]) > 0:
+                utts.append(text[st: i] + c)
+            if i + 1 < len(text) and text[i + 1] in ['"', '”']:
                 tmp = utts.pop(-1)
                 utts.append(tmp + text[i + 1])
                 st = i + 2
@@ -113,10 +104,7 @@ def split_paragraph(
     final_utts = []
     cur_utt = ""
     for utt in utts:
-        if (
-            calc_utt_length(cur_utt + utt) > token_max_n
-            and calc_utt_length(cur_utt) > token_min_n
-        ):
+        if calc_utt_length(cur_utt + utt) > token_max_n and calc_utt_length(cur_utt) > token_min_n:
             final_utts.append(cur_utt)
             cur_utt = ""
         cur_utt = cur_utt + utt
@@ -134,9 +122,8 @@ def replace_blank(text: str):
     out_str = []
     for i, c in enumerate(text):
         if c == " ":
-            if (text[i + 1].isascii() and text[i + 1] != " ") and (
-                text[i - 1].isascii() and text[i - 1] != " "
-            ):
+            if ((text[i + 1].isascii() and text[i + 1] != " ") and
+                    (text[i - 1].isascii() and text[i - 1] != " ")):
                 out_str.append(c)
         else:
             out_str.append(c)
@@ -145,5 +132,5 @@ def replace_blank(text: str):
 
 def is_only_punctuation(text):
     # Regular expression: Match strings that consist only of punctuation marks or are empty.
-    punctuation_pattern = r"^[\p{P}\p{S}]*$"
+    punctuation_pattern = r'^[\p{P}\p{S}]*$'
     return bool(regex.fullmatch(punctuation_pattern, text))
